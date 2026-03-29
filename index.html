@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1e40af" />
+  <meta name="description" content="App para tomar asistencia de alumnos" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Asistencia</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Nunito', sans-serif; background: #0f172a; color: #e2e8f0; max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; }
+    @keyframes fadeIn { from { opacity:0; transform:translateX(-50%) translateY(-8px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+    input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1); }
+    button:active { opacity: .75; }
+
+    /* HEADER */
+    #header {
+      background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+      padding: 20px 20px 16px; position: sticky; top: 0; z-index: 10;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    }
+    #header h1 { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; color: #fff; }
+    #header p  { font-size: 13px; color: rgba(255,255,255,.7); margin-top: 2px; }
+
+    /* NAV */
+    nav {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      background: #1e293b; border-top: 1px solid #334155;
+      display: flex; z-index: 20;
+    }
+    nav button {
+      flex: 1; padding: 12px 0; border: none; background: none;
+      color: #64748b; cursor: pointer; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      transition: color .2s; font-family: 'Nunito', sans-serif;
+    }
+    nav button.active { color: #818cf8; }
+    nav button span.icon { font-size: 20px; }
+
+    /* BODY */
+    #body { padding: 16px 16px 0; }
+
+    /* CARD */
+    .card {
+      background: #1e293b; border-radius: 16px; padding: 14px 16px;
+      margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+
+    /* BADGE */
+    .badge {
+      border-radius: 99px; padding: 2px 9px; font-size: 12px; font-weight: 700; color: #fff;
+    }
+    .badge.green  { background: #22c55e; }
+    .badge.yellow { background: #f59e0b; }
+    .badge.red    { background: #ef4444; }
+
+    /* INPUTS */
+    input[type=text], input[type=date] {
+      background: #0f172a; border: 2px solid #334155;
+      color: #e2e8f0; border-radius: 10px; padding: 10px 14px;
+      font-size: 15px; font-family: 'Nunito', sans-serif; width: 100%;
+    }
+    input[type=date] { flex: 1; }
+
+    /* BUTTONS */
+    .btn { border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: 'Nunito', sans-serif; transition: opacity .2s; color: #fff; }
+    .btn-purple { background: #6366f1; }
+    .btn-green  { background: #22c55e; }
+    .btn-red    { background: #ef4444; }
+    .btn-gray   { background: #475569; }
+    .btn-dark   { background: #334155; }
+    .btn-full   { width: 100%; font-size: 15px; padding: 13px; }
+
+    /* STUDENT ROW */
+    .student-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 14px; border-radius: 13px; margin-bottom: 8px;
+      cursor: pointer; transition: all .18s; user-select: none;
+      background: #0f172a; border: 2px solid #1e293b;
+    }
+    .student-row.present {
+      background: rgba(34,197,94,.15); border-color: #22c55e;
+      animation: pop .2s ease;
+    }
+    .check-circle {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      background: #1e293b; border: 2px solid #334155;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; transition: all .18s;
+    }
+    .student-row.present .check-circle { background: #22c55e; border-color: #22c55e; }
+    .student-name { flex: 1; font-weight: 700; font-size: 16px; }
+    .student-tag { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #475569; }
+    .student-row.present .student-tag { color: #22c55e; }
+
+    /* DATE ROW */
+    .date-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+
+    /* QUICK ACTIONS */
+    .quick-actions { display: flex; gap: 8px; margin-bottom: 14px; }
+    .quick-actions .btn { flex: 1; font-size: 13px; }
+
+    /* HISTORY CARD */
+    .hist-card {
+      background: #1e293b; border-radius: 14px; padding: 14px 16px;
+      margin-bottom: 10px; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .hist-card p { margin: 0; }
+    .hist-card .hist-title { font-weight: 900; font-size: 15px; }
+    .hist-card .hist-sub   { font-size: 12px; color: #64748b; margin-top: 2px !important; }
+
+    /* DETAIL ROW */
+    .detail-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid #1e293b;
+    }
+    .detail-row span:first-child { font-weight: 700; }
+    .detail-row .pres  { color: #22c55e; font-weight: 800; }
+    .detail-row .ausen { color: #ef4444; font-weight: 800; }
+
+    /* EMPTY STATE */
+    .empty { text-align: center; padding: 40px 20px; color: #475569; }
+    .empty .emoji { font-size: 48px; }
+    .empty p { font-size: 14px; margin-top: 8px; }
+    .empty strong { font-size: 16px; display: block; margin-bottom: 4px; color: #64748b; }
+
+    /* STUDENT EDIT ROW */
+    .student-edit { display: flex; align-items: center; gap: 8px; }
+    .student-edit input { flex: 1; }
+
+    /* TOAST */
+    #toast {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      color: #fff; padding: 10px 20px; border-radius: 99px;
+      font-weight: 700; font-size: 14px; z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      animation: fadeIn .2s ease; display: none;
+      font-family: 'Nunito', sans-serif;
+    }
+
+    .section-title { font-weight: 800; font-size: 15px; margin-bottom: 10px; }
+
+    /* INLINE ROW for student management */
+    .mgmt-row {
+      background: #1e293b; border-radius: 13px; padding: 12px 14px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 10px;
+    }
+    .mgmt-row span { flex: 1; font-weight: 700; font-size: 15px; }
+    .mgmt-row .btn { padding: 8px 12px; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1 id="headerTitle">📋 Tomar Asistencia</h1>
+  <p id="headerSub"></p>
+</div>
+
+<div id="body"></div>
+
+<nav>
+  <button class="active" onclick="switchView('attendance')" id="nav-attendance">
+    <span class="icon">✅</span>Asistencia
+  </button>
+  <button onclick="switchView('students')" id="nav-students">
+    <span class="icon">👥</span>Alumnos
+  </button>
+  <button onclick="switchView('history')" id="nav-history">
+    <span class="icon">📅</span>Historial
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let students = JSON.parse(localStorage.getItem('att_students') || '[]');
+let records  = JSON.parse(localStorage.getItem('att_records')  || '{}');
+let currentView = 'attendance';
+let selDate = today();
+let histDate = null;
+let editingId = null;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+function fmt(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+const DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function dayName(iso) {
+  return DAYS[new Date(iso + 'T12:00:00').getDay()];
+}
+function saveStudents() { localStorage.setItem('att_students', JSON.stringify(students)); }
+function saveRecords()  { localStorage.setItem('att_records',  JSON.stringify(records));  }
+function presentCount(date) {
+  return students.filter(s => records[date] && records[date][s.id]).length;
+}
+function badgeClass(count, total) {
+  if (count === total) return 'green';
+  if (count === 0) return 'red';
+  return 'yellow';
+}
+function showToast(msg, color = '#22c55e') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2000);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render() {
+  updateHeader();
+  if (currentView === 'attendance') renderAttendance();
+  else if (currentView === 'students') renderStudents();
+  else renderHistory();
+}
+
+function updateHeader() {
+  const title = document.getElementById('headerTitle');
+  const sub   = document.getElementById('headerSub');
+  if (currentView === 'attendance') {
+    title.textContent = '📋 Tomar Asistencia';
+    sub.textContent = `${students.length} alumno${students.length !== 1 ? 's' : ''} · ${dayName(selDate)} ${fmt(selDate)}`;
+  } else if (currentView === 'students') {
+    title.textContent = '👥 Mis Alumnos';
+    sub.textContent = `${students.length} alumno${students.length !== 1 ? 's' : ''} registrado${students.length !== 1 ? 's' : ''}`;
+  } else {
+    const dates = Object.keys(records).length;
+    title.textContent = '📅 Historial';
+    sub.textContent = `${dates} día${dates !== 1 ? 's' : ''} con registro`;
+  }
+}
+
+function renderAttendance() {
+  const pCount = presentCount(selDate);
+  const bc = badgeClass(pCount, students.length);
+  let html = `
+    <div class="date-row">
+      <input type="date" id="dateInput" value="${selDate}" oninput="changeDate(this.value)" style="flex:1" />
+      <span class="badge ${bc}">${pCount}/${students.length}</span>
+    </div>`;
+
+  if (students.length > 0) {
+    html += `<div class="quick-actions">
+      <button class="btn btn-green" onclick="markAll(true)">✓ Todos presentes</button>
+      <button class="btn btn-gray"  onclick="markAll(false)">✗ Limpiar</button>
+    </div>`;
+  }
+
+  if (students.length === 0) {
+    html += `<div class="empty"><div class="emoji">📋</div><strong>Sin alumnos</strong><p>Agregá alumnos en la pestaña "Alumnos"</p></div>`;
+  } else {
+    students.forEach(s => {
+      const present = !!(records[selDate] && records[selDate][s.id]);
+      html += `
+        <div class="student-row ${present ? 'present' : ''}" onclick="toggleStudent('${s.id}')">
+          <div class="check-circle">${present ? '✓' : ''}</div>
+          <span class="student-name">${s.name}</span>
+          <span class="student-tag">${present ? 'presente' : 'ausente'}</span>
+        </div>`;
+    });
+  }
+  document.getElementById('body').innerHTML = html;
+}
+
+function renderStudents() {
+  let html = `<div class="card">
+    <p class="section-title">Agregar alumno</p>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="newName" placeholder="Nombre del alumno" onkeydown="if(event.key==='Enter')addStudent()" />
+      <button class="btn btn-purple" onclick="addStudent()" style="flex-shrink:0">+</button>
+    </div>
+  </div>`;
+
+  if (students.length === 0) {
+    html += `<div class="empty"><div class="emoji">👥</div><p>Todavía no hay alumnos</p></div>`;
+  } else {
+    students.forEach(s => {
+      if (editingId === s.id) {
+        html += `<div class="mgmt-row">
+          <input type="text" id="editInput_${s.id}" value="${s.name}" onkeydown="if(event.key==='Enter')saveEdit('${s.id}')" style="flex:1" />
+          <button class="btn btn-green" onclick="saveEdit('${s.id}')">✓</button>
+          <button class="btn btn-dark"  onclick="cancelEdit()">✕</button>
+        </div>`;
+      } else {
+        html += `<div class="mgmt-row">
+          <span>${s.name}</span>
+          <button class="btn btn-dark" onclick="startEdit('${s.id}','${s.name.replace(/'/g,"\\'")}')">✏️</button>
+          <button class="btn btn-red"  onclick="deleteStudent('${s.id}')">🗑️</button>
+        </div>`;
+      }
+    });
+  }
+  document.getElementById('body').innerHTML = html;
+  if (editingId) {
+    const inp = document.getElementById('editInput_' + editingId);
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
+function renderHistory() {
+  const allDates = Object.keys(records).sort().reverse();
+  let html = '';
+
+  if (allDates.length === 0) {
+    html = `<div class="empty"><div class="emoji">📅</div><p>No hay registros todavía</p></div>`;
+    document.getElementById('body').innerHTML = html;
+    return;
+  }
+
+  html += `<button class="btn btn-green btn-full" onclick="exportXLSX()" style="margin-bottom:14px">📊 Exportar planilla Excel</button>`;
+
+  if (histDate) {
+    const pCount = presentCount(histDate);
+    const bc = badgeClass(pCount, students.length);
+    html += `<button class="btn btn-dark" onclick="histDate=null;render()" style="margin-bottom:12px">← Volver</button>
+      <div class="card">
+        <p style="font-weight:900;font-size:16px;margin-bottom:12px">
+          ${dayName(histDate)} ${fmt(histDate)}
+          <span class="badge ${bc}" style="margin-left:10px">${pCount}/${students.length}</span>
+        </p>`;
+    students.forEach(s => {
+      const p = !!(records[histDate] && records[histDate][s.id]);
+      html += `<div class="detail-row">
+        <span>${s.name}</span>
+        <span class="${p ? 'pres' : 'ausen'}">${p ? '✓ Presente' : '✗ Ausente'}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  } else {
+    allDates.forEach(d => {
+      const pc = presentCount(d);
+      const bc = badgeClass(pc, students.length);
+      html += `<div class="hist-card" onclick="histDate='${d}';render()">
+        <div>
+          <p class="hist-title">${dayName(d)} ${fmt(d)}</p>
+          <p class="hist-sub">Tocá para ver detalle</p>
+        </div>
+        <span class="badge ${bc}">${pc}/${students.length}</span>
+      </div>`;
+    });
+  }
+  document.getElementById('body').innerHTML = html;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function switchView(v) {
+  currentView = v;
+  histDate = null;
+  editingId = null;
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-' + v).classList.add('active');
+  render();
+}
+
+function changeDate(v) {
+  selDate = v;
+  render();
+}
+
+function toggleStudent(id) {
+  if (!records[selDate]) records[selDate] = {};
+  if (records[selDate][id]) delete records[selDate][id];
+  else records[selDate][id] = true;
+  saveRecords();
+  render();
+}
+
+function markAll(val) {
+  if (!records[selDate]) records[selDate] = {};
+  if (val) students.forEach(s => { records[selDate][s.id] = true; });
+  else records[selDate] = {};
+  saveRecords();
+  showToast(val ? 'Todos marcados ✓' : 'Lista limpiada');
+  render();
+}
+
+function addStudent() {
+  const inp = document.getElementById('newName');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Ya existe ese alumno', '#ef4444'); return;
+  }
+  students.push({ id: Date.now().toString(), name });
+  saveStudents();
+  inp.value = '';
+  showToast(`${name} agregado 🎉`);
+  render();
+}
+
+function deleteStudent(id) {
+  if (!confirm('¿Eliminar alumno?')) return;
+  students = students.filter(s => s.id !== id);
+  saveStudents();
+  render();
+}
+
+function startEdit(id, name) {
+  editingId = id;
+  render();
+}
+
+function saveEdit(id) {
+  const inp = document.getElementById('editInput_' + id);
+  const name = inp ? inp.value.trim() : '';
+  if (!name) return;
+  students = students.map(s => s.id === id ? { ...s, name } : s);
+  saveStudents();
+  editingId = null;
+  render();
+}
+
+function cancelEdit() {
+  editingId = null;
+  render();
+}
+
+function exportXLSX() {
+  if (typeof XLSX === 'undefined') { alert('Error al cargar SheetJS'); return; }
+  const dates = Object.keys(records).sort();
+  const header = ['Alumno', ...dates.map(d => `${dayName(d)} ${fmt(d)}`)];
+  const rows = students.map(s => [
+    s.name,
+    ...dates.map(d => (records[d] && records[d][s.id] ? '✓' : '✗'))
+  ]);
+  const totals = ['TOTAL', ...dates.map(d => {
+    const cnt = students.filter(s => records[d] && records[d][s.id]).length;
+    return `${cnt}/${students.length}`;
+  })];
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows, totals]);
+  ws['!cols'] = [{ wch: 24 }, ...dates.map(() => ({ wch: 14 }))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buf], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'asistencias.xlsx'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
